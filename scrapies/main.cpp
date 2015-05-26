@@ -4,7 +4,7 @@
 #include <algorithm>
 #include <iterator>
 #include <fstream>
-#include <set>
+#include <vector>
 #include <boost/filesystem.hpp>
 #include <boost/program_options.hpp>
 //#include "gumbo.h"
@@ -80,38 +80,44 @@ int main(int argc, char ** argv)
 //    if (vm.count(command_file_option))
 //        command_file_path = vm[command_file_option].as<fs::path>();
     curl_global_init(CURL_GLOBAL_DEFAULT);
-    
-    fs::path nasdaq_file = "nasdaq_symbols";
-    fs::path other_file = "other_symbols";
-    
+       
     //TODO(brian): config file should hold files to retrieve
-    std::ifstream nasdaq_symbols_file(crl::get_ftp(nasdaq_file.c_str(), "ftp://ftp.nasdaqtrader.com/symboldirectory/nasdaqlisted.txt"));
-    std::ifstream other_symbols_file(crl::get_ftp(other_file.c_str(), "ftp://ftp.nasdaqtrader.com/symboldirectory/otherlisted.txt"));
+    auto nasdaq_future = std::async(std::launch::async, crl::get_string, "ftp://ftp.nasdaqtrader.com/symboldirectory/nasdaqlisted.txt");
+    auto other_future = std::async(std::launch::async, crl::get_string, "ftp://ftp.nasdaqtrader.com/symboldirectory/otherlisted.txt");
     
+    auto nasdaq_stream = nasdaq_future.get();
+    auto other_stream = other_future.get();
+
     std::vector<std::string> symbols;
     std::string line;
-    while(std::getline(nasdaq_symbols_file, line))
+    while( std::getline(nasdaq_stream, line))
     {
          symbols.push_back(get_symbol('|', 0, line));
     }
-    symbols.pop_back();
+    if(symbols.size() > 0)
+        symbols.pop_back();
 
-    while(std::getline(other_symbols_file, line))
+    while(std::getline(other_stream, line))
     {
          symbols.push_back(get_symbol('|', 0, line));
     }
-    symbols.pop_back();
+    if(symbols.size() > 0)
+        symbols.pop_back();
     
     std::sort(symbols.begin(), symbols.end());
     symbols.resize(symbols.size() - std::distance(std::unique(symbols.begin(), symbols.end()), symbols.end()));
     symbols.shrink_to_fit();
     
-    for(const auto & v : symbols)
-    {
-        printf("%s\n", v.c_str());
-    }
-    //get symbol website from wikinvest
-    //http://www.wikinvest.com/wiki/SYMBOL
+//    for(const auto & v : symbols)
+//    {
+//        printf("%s\n", v.c_str());
+//    }
+
+
+    //get symbol website from google finance
+    //https://www.google.com/finance?q=mpel
+    //get address query maps api to get coordinates
     
+    curl_global_cleanup();
     return 0;
 }

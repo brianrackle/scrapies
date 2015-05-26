@@ -1,6 +1,7 @@
 #ifndef ba57c2d4bd1642939df1a29e681b1658
 #define ba57c2d4bd1642939df1a29e681b1658
 #include <curl/curl.h>
+#include <sstream>
 
 namespace scrapies_curl
 {
@@ -21,14 +22,15 @@ namespace scrapies_curl
         return fwrite(buffer, size, nmemb, out->stream);
     }
     
-    size_t write_to_string(void * buffer, size_t size, size_t nmemb, void *stream)
+    size_t write_to_string(char * buffer, size_t size, size_t nmemb, void *stream)
     {
-        ((std::string*)stream)->append((char *)buffer, size * nmemb);
-        return size * nmemb;
+        size_t count = size * nmemb;
+        ((std::ostringstream *)stream)->write(buffer, nmemb);
+        return count;
     }
 
     //TODO(brian): is write_ftp thread safe?
-    std::string get_ftp(const char * t_output, const char * t_path)
+    std::string get_file(const char * t_output, const char * t_path)
     {
         CURL *curl;
 
@@ -58,15 +60,39 @@ namespace scrapies_curl
 
         if(file.stream)
             fclose(file.stream); /* close the local file */
-
-        curl_global_cleanup();
         
         return file.filename;
     }
     
-    std::string get_http()
+    std::stringstream get_string(const char * t_path)
     {
-        return std::string();
+        CURL *curl;
+
+        std::stringstream stream;
+
+        curl = curl_easy_init();
+        if(curl)
+        {
+            curl_easy_setopt(curl, CURLOPT_URL, t_path);
+            curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_to_string);
+            curl_easy_setopt(curl, CURLOPT_WRITEDATA, &stream);
+
+            //curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+
+            CURLcode res = curl_easy_perform(curl);
+
+            /* always cleanup */
+            curl_easy_cleanup(curl);
+
+            if(CURLE_OK != res)
+            {
+                /* we failed */
+                fprintf(stderr, "curl told us %d\n", res);
+                return "";
+            }
+        }
+        printf("%s", stream.str().c_str());
+        return std::move(stream);
     }
 }
 #endif
